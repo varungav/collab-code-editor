@@ -945,3 +945,37 @@ body {
   color: #8a8a8a;
   cursor: default;
 }
+
+/* Generic small loading spinner, reused wherever an async action is in flight */
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #4a4d51;
+  border-top-color: #cccccc;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+.spinner--inline {
+  margin-right: 6px;
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.members-list__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  font-size: 13px;
+  color: #cccccc;
+}
