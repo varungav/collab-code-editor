@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import Header from '../components/Header'
+import ChangeNameModal from '../components/ChangeNameModal'
 import type { IncomingAccessRequest } from '../types/access'
 import type { Project } from '../types/file'
 
@@ -15,7 +16,8 @@ type DashboardProps = {
 type LoadState = 'loading' | 'ready' | 'error'
 
 function Dashboard({ onOpenProject, pendingRequests, onApproveRequest, onDenyRequest }: DashboardProps) {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [newProjectName, setNewProjectName] = useState('')
@@ -61,7 +63,7 @@ function Dashboard({ onOpenProject, pendingRequests, onApproveRequest, onDenyReq
               </div>
               <span className="header-user__name">{user?.name}</span>
             </div>
-            <button type="button" className="header-text-btn" onClick={logout}>
+            <button type="button" className="header-text-btn" onClick={() => setChangeNameOpen(true)}>
               Change name
             </button>
           </div>
@@ -142,6 +144,7 @@ function Dashboard({ onOpenProject, pendingRequests, onApproveRequest, onDenyReq
         </form>
         {createError && <div className="auth-error">{createError}</div>}
       </div>
+      {changeNameOpen && <ChangeNameModal onClose={() => setChangeNameOpen(false)} />}
     </>
   )
 }

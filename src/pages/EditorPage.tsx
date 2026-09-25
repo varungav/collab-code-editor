@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import Header from '../components/Header'
 import MembersPanel from '../components/MembersPanel'
+import ChangeNameModal from '../components/ChangeNameModal'
 import ProjectAccessGate from '../components/ProjectAccessGate'
 import Workspace from '../components/Workspace'
 
@@ -11,7 +12,8 @@ type EditorPageProps = {
 }
 
 function EditorPage({ projectId, onBack }: EditorPageProps) {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const [changeNameOpen, setChangeNameOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
 
   return (
@@ -63,13 +65,14 @@ function EditorPage({ projectId, onBack }: EditorPageProps) {
                     <span className="header-user__name">{user?.name}</span>
                   </div>
 
-                  <button type="button" className="header-text-btn" onClick={logout}>
+                  <button type="button" className="header-text-btn" onClick={() => setChangeNameOpen(true)}>
                     Change name
                   </button>
                 </div>
               }
             />
             <Workspace projectId={projectId} role={role} projectName={projectName} />
+            {changeNameOpen && <ChangeNameModal onClose={() => setChangeNameOpen(false)} />}
             {membersOpen && (
               <MembersPanel projectId={projectId} onClose={() => setMembersOpen(false)} />
             )}
