@@ -5,10 +5,25 @@ import { AppError } from '../utils/AppError'
 import { projectAuthorizationService } from './projectAuthorizationService'
 
 type CreateFileInput = {
-  name: string
-  path: string
-  language: string
-  content?: string
+  name?: unknown
+  path?: unknown
+  language?: unknown
+  content?: unknown
+}
+
+const MAX_NAME_LENGTH = 255
+const MAX_PATH_LENGTH = 1024
+const MAX_LANGUAGE_LENGTH = 64
+const MAX_CONTENT_BYTES = 5 * 1024 * 1024 // 5MB — generous for source files, bounds request size
+
+// Rejects paths that could escape the project's own file namespace (Prisma
+// only uses `path` as an opaque unique key, never touches a real filesystem,
+// but a client-controlled `../` or absolute path is still nonsensical input
+// worth rejecting outright rather than storing).
+function isValidRelativePath(path: string): boolean {
+  if (path.startsWith('/') || path.includes('\\')) return false
+  const segments = path.split('/')
+  return segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
 }
 
 // Any project member (OWNER/EDITOR/VIEWER) can read; 404s for both "no such
@@ -54,23 +69,48 @@ function getFileById(fileId: string, userId: string): Promise<File> {
 async function createFile(projectId: string, userId: string, input: CreateFileInput): Promise<File> {
   await projectAuthorizationService.requireEditor(userId, projectId)
 
-  if (!input.name || !input.name.trim()) {
+  if (typeof input.name !== 'string' || !input.name.trim()) {
     throw new AppError(400, 'File name is required')
   }
-  if (!input.path || !input.path.trim()) {
+  if (input.name.length > MAX_NAME_LENGTH) {
+    throw new AppError(400, `File name must be at most ${MAX_NAME_LENGTH} characters`)
+  }
+  if (typeof input.path !== 'string' || !input.path.trim()) {
     throw new AppError(400, 'File path is required')
   }
-  if (!input.language || !input.language.trim()) {
+  if (input.path.length > MAX_PATH_LENGTH) {
+    throw new AppError(400, `File path must be at most ${MAX_PATH_LENGTH} characters`)
+  }
+  if (!isValidRelativePath(input.path)) {
+    throw new AppError(400, 'File path must be a relative path without "." or ".." segments')
+  }
+  if (typeof input.language !== 'string' || !input.language.trim()) {
     throw new AppError(400, 'File language is required')
   }
+  if (input.language.length > MAX_LANGUAGE_LENGTH) {
+    throw new AppError(400, `File language must be at most ${MAX_LANGUAGE_LENGTH} characters`)
+  }
+  if (input.content !== undefined) {
+    if (typeof input.content !== 'string') {
+      throw new AppError(400, 'File content must be a string')
+    }
+    if (Buffer.byteLength(input.content, 'utf8') > MAX_CONTENT_BYTES) {
+      throw new AppError(400, 'File content exceeds the maximum allowed size')
+    }
+  }
+
+  const name = input.name
+  const path = input.path
+  const language = input.language
+  const content = typeof input.content === 'string' ? input.content : ''
 
   try {
     return await fileRepository.create({
       projectId,
-      name: input.name.trim(),
-      path: input.path.trim(),
-      language: input.language.trim(),
-      content: input.content ?? '',
+      name: name.trim(),
+      path: path.trim(),
+      language: language.trim(),
+      content,
     })
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -80,11 +120,14 @@ async function createFile(projectId: string, userId: string, input: CreateFileIn
   }
 }
 
-async function updateFileContent(fileId: string, userId: string, content: string): Promise<File> {
+async function updateFileContent(fileId: string, userId: string, content: unknown): Promise<File> {
   await getEditableFile(fileId, userId)
 
   if (typeof content !== 'string') {
     throw new AppError(400, 'File content must be a string')
+  }
+  if (Buffer.byteLength(content, 'utf8') > MAX_CONTENT_BYTES) {
+    throw new AppError(400, 'File content exceeds the maximum allowed size')
   }
 
   try {

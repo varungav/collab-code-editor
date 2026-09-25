@@ -9,6 +9,8 @@ import { projectAuthorizationService } from './projectAuthorizationService'
 export type ProjectAccessStatus = 'member' | 'pending' | 'none'
 export type ProjectWithRole = Project & { role: ProjectRole }
 
+const MAX_PROJECT_NAME_LENGTH = 200
+
 // Annotated with the caller's own role in each project, so the Dashboard can
 // show "Owner"/"Editor"/"Viewer" instead of a generic "shared with you".
 async function getAllProjects(userId: string): Promise<ProjectWithRole[]> {
@@ -51,9 +53,12 @@ async function getAccessStatus(
   return { project, status: 'none', role: null }
 }
 
-async function createProject(ownerId: string, name: string): Promise<Project> {
-  if (!name || !name.trim()) {
+async function createProject(ownerId: string, name: unknown): Promise<Project> {
+  if (typeof name !== 'string' || !name.trim()) {
     throw new AppError(400, 'Project name is required')
+  }
+  if (name.length > MAX_PROJECT_NAME_LENGTH) {
+    throw new AppError(400, `Project name must be at most ${MAX_PROJECT_NAME_LENGTH} characters`)
   }
 
   const project = await projectRepository.create(ownerId, name.trim())

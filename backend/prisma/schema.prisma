@@ -3,8 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Migrations (and other DDL) go through the direct/session connection
+  // rather than the transaction pooler, since pgbouncer in transaction mode
+  // doesn't support the prepared statements Prisma's migration engine needs.
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
