@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projects       Project[]
+  accessRequests ProjectAccessRequest[]
+  chatMessages   ChatMessage[]
+  memberships    ProjectMember[]
+
+  @@map("users")
+}
+
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner          User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  files          File[]
+  accessRequests ProjectAccessRequest[]
+  chatMessages   ChatMessage[]
+  members        ProjectMember[]
+
+  @@index([ownerId])
+  @@map("projects")
+}
+
+enum ProjectRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+// The authoritative source of "does this user have access to this project,
+// and what can they do" — every authorization check in Phase 9 goes through
+// this table (via projectAuthorizationService), not through Project.ownerId
+// directly. The owner is always also a row here (role OWNER), created
+// alongside the project so there's exactly one place membership lives.
+model ProjectMember {
+  id        String      @id @default(uuid())
+  projectId String
+  userId    String
+  role      ProjectRole
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// Persisted history for the Phase 6 debug/test chat panel — so it survives a
+// refresh and shows prior activity to anyone who opens the project, instead
+// of only existing in memory for the browser tab that sent it.
+model ChatMessage {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("chat_messages")
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+// A requester's standing with a project: PENDING (awaiting the owner's
+// decision), APPROVED (has editor access alongside the owner), or DENIED.
+// One row per (project, requester) — re-requesting after a denial reuses it.
+model ProjectAccessRequest {
+  id          String              @id @default(uuid())
+  projectId   String
+  requesterId String
+  status      AccessRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requester User    @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, requesterId])
+  @@index([projectId])
+  @@index([requesterId])
+  @@map("project_access_requests")
+}
+
+model File {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  path      String
+  language  String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@index([projectId])
+  @@map("files")
+}
