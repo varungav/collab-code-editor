@@ -1,10 +1,10 @@
 import { Router } from 'express'
 import { accessRequestController } from '../controllers/accessRequestController'
-import { authMiddleware } from '../middleware/authMiddleware'
+import { guestMiddleware } from '../middleware/guestMiddleware'
 
 const router = Router()
 
-router.use(authMiddleware)
+router.use(guestMiddleware)
 
 router.get('/', accessRequestController.listIncoming)
 router.post('/:requestId/approve', accessRequestController.approve)

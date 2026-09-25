@@ -25,6 +25,10 @@ function updateContent(id: string, content: string): Promise<File> {
   return prisma.file.update({ where: { id }, data: { content } })
 }
 
+function updatePath(id: string, data: { name: string; path: string }): Promise<File> {
+  return prisma.file.update({ where: { id }, data })
+}
+
 async function remove(id: string): Promise<void> {
   await prisma.file.delete({ where: { id } })
 }
@@ -34,5 +38,6 @@ export const fileRepository = {
   findByProjectId,
   create,
   updateContent,
+  updatePath,
   remove,
 }

@@ -4,11 +4,11 @@ import { chatController } from '../controllers/chatController'
 import { fileController } from '../controllers/fileController'
 import { projectController } from '../controllers/projectController'
 import { projectMemberController } from '../controllers/projectMemberController'
-import { authMiddleware } from '../middleware/authMiddleware'
+import { guestMiddleware } from '../middleware/guestMiddleware'
 
 const router = Router()
 
-router.use(authMiddleware)
+router.use(guestMiddleware)
 
 router.get('/', projectController.getAll)
 router.post('/', projectController.create)

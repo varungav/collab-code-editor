@@ -4,7 +4,7 @@ import type { ProjectRole } from '../types/members'
 
 type ProjectAccessGateProps = {
   projectId: string
-  children: (role: ProjectRole) => ReactNode
+  children: (role: ProjectRole, projectName: string) => ReactNode
 }
 
 // Wraps the editor: renders `children` (with the caller's role) once the
@@ -27,7 +27,7 @@ function ProjectAccessGate({ projectId, children }: ProjectAccessGateProps) {
   }
 
   if (state.status === 'member' && state.role) {
-    return <>{children(state.role)}</>
+    return <>{children(state.role, state.projectName)}</>
   }
 
   return (
@@ -35,7 +35,7 @@ function ProjectAccessGate({ projectId, children }: ProjectAccessGateProps) {
       <div className="access-gate__card">
         <h2>{state.projectName}</h2>
         {state.status === 'pending' ? (
-          <p className="access-gate__message">🟡 Your request to access this project is pending approval.</p>
+          <p className="access-gate__message">Your request is pending approval.</p>
         ) : (
           <>
             <p className="access-gate__message">You don&apos;t have access to this project yet.</p>

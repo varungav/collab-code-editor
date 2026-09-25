@@ -75,15 +75,7 @@ async function createFile(projectId: string, userId: string, input: CreateFileIn
   if (input.name.length > MAX_NAME_LENGTH) {
     throw new AppError(400, `File name must be at most ${MAX_NAME_LENGTH} characters`)
   }
-  if (typeof input.path !== 'string' || !input.path.trim()) {
-    throw new AppError(400, 'File path is required')
-  }
-  if (input.path.length > MAX_PATH_LENGTH) {
-    throw new AppError(400, `File path must be at most ${MAX_PATH_LENGTH} characters`)
-  }
-  if (!isValidRelativePath(input.path)) {
-    throw new AppError(400, 'File path must be a relative path without "." or ".." segments')
-  }
+  validatePath(input.path)
   if (typeof input.language !== 'string' || !input.language.trim()) {
     throw new AppError(400, 'File language is required')
   }
@@ -115,6 +107,46 @@ async function createFile(projectId: string, userId: string, input: CreateFileIn
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
       throw new AppError(400, 'A file with this path already exists in the project')
+    }
+    throw err
+  }
+}
+
+// Shared by createFile and renameFile — a path is well-formed the same way
+// regardless of whether it's a brand new file or an existing one moving to
+// a new name/location.
+function validatePath(path: unknown): asserts path is string {
+  if (typeof path !== 'string' || !path.trim()) {
+    throw new AppError(400, 'File path is required')
+  }
+  if (path.length > MAX_PATH_LENGTH) {
+    throw new AppError(400, `File path must be at most ${MAX_PATH_LENGTH} characters`)
+  }
+  if (!isValidRelativePath(path)) {
+    throw new AppError(400, 'File path must be a relative path without "." or ".." segments')
+  }
+}
+
+async function renameFile(fileId: string, userId: string, newPath: unknown): Promise<File> {
+  const file = await getEditableFile(fileId, userId)
+
+  validatePath(newPath)
+  const path = (newPath as string).trim()
+  const name = path.split('/').pop() as string
+  if (name.length > MAX_NAME_LENGTH) {
+    throw new AppError(400, `File name must be at most ${MAX_NAME_LENGTH} characters`)
+  }
+
+  if (path === file.path) return file
+
+  try {
+    return await fileRepository.updatePath(fileId, { name, path })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new AppError(400, 'A file with this path already exists in the project')
+    }
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+      throw new AppError(404, 'File not found')
     }
     throw err
   }
@@ -158,5 +190,6 @@ export const fileService = {
   getFileById,
   createFile,
   updateFileContent,
+  renameFile,
   deleteFile,
 }

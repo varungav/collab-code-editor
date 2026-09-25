@@ -27,6 +27,12 @@ async function update(req: Request<{ fileId: string }>, res: Response) {
   res.status(200).json(file)
 }
 
+async function rename(req: Request<{ fileId: string }>, res: Response) {
+  const userId = requireUserId(req)
+  const file = await fileService.renameFile(req.params.fileId, userId, req.body?.path)
+  res.status(200).json(file)
+}
+
 async function remove(req: Request<{ fileId: string }>, res: Response) {
   const userId = requireUserId(req)
   await fileService.deleteFile(req.params.fileId, userId)
@@ -38,5 +44,6 @@ export const fileController = {
   getOne,
   create,
   update,
+  rename,
   remove,
 }

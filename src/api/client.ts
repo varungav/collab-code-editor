@@ -1,6 +1,5 @@
-import { getToken } from '../auth/tokenStore'
+import { getGuestId, getGuestName } from '../auth/guestStore'
 import type { IncomingAccessRequest, ProjectAccess } from '../types/access'
-import type { AuthUser } from '../types/auth'
 import type { ChatMessage } from '../types/chat'
 import type { FileItem, Project } from '../types/file'
 import type { ProjectMember, ProjectRole } from '../types/members'
@@ -17,10 +16,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
+  const guestId = getGuestId()
+  const guestName = getGuestName() ?? 'Guest'
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Guest-Id': guestId,
+    'X-Guest-Name': guestName,
   }
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -40,24 +41,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-type AuthResponse = {
-  token: string
-  user: AuthUser
-}
-
 export const api = {
-  register: (name: string, email: string, password: string) =>
-    request<AuthResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, email, password }),
-    }),
-  login: (email: string, password: string) =>
-    request<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
-  me: () => request<AuthUser>('/auth/me'),
-
   getProjects: () => request<Project[]>('/projects'),
   createProject: (name: string) =>
     request<Project>('/projects', { method: 'POST', body: JSON.stringify({ name }) }),
@@ -73,6 +57,12 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ content }),
     }),
+  renameFile: (fileId: string, path: string) =>
+    request<FileItem>(`/files/${fileId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ path }),
+    }),
+  deleteFile: (fileId: string) => request<void>(`/files/${fileId}`, { method: 'DELETE' }),
 
   getProjectMessages: (projectId: string) => request<ChatMessage[]>(`/projects/${projectId}/messages`),
 

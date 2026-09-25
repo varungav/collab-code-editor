@@ -54,10 +54,15 @@ function Dashboard({ onOpenProject, pendingRequests, onApproveRequest, onDenyReq
     <>
       <Header
         right={
-          <div className="app-header__user">
-            <span>{user?.name}</span>
-            <button type="button" className="link-button" onClick={logout}>
-              Logout
+          <div className="header-actions">
+            <div className="header-user">
+              <div className="header-user__avatar">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+              <span className="header-user__name">{user?.name}</span>
+            </div>
+            <button type="button" className="header-text-btn" onClick={logout}>
+              Change name
             </button>
           </div>
         }
@@ -105,12 +110,19 @@ function Dashboard({ onOpenProject, pendingRequests, onApproveRequest, onDenyReq
                   className="project-list__item"
                   onClick={() => onOpenProject(project.id)}
                 >
-                  📁 {project.name}
+                  <svg className="project-list__icon" width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                    <rect x="1" y="4" width="13" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                    <path d="M1 6.5h13M5 4V3a1 1 0 011-1h3a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.3"/>
+                  </svg>
+                  <span className="project-list__name">{project.name}</span>
                   {project.role !== 'OWNER' && (
                     <span className="project-list__badge">
                       {project.role === 'EDITOR' ? 'Editor' : 'Viewer'}
                     </span>
                   )}
+                  <svg className="project-list__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </li>
             ))}

@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthContext'
-import { getToken } from '../auth/tokenStore'
 import { WebSocketService } from '../services/websocketService'
 import type { ClientMessage, ConnectionState, ServerMessage } from '../types/websocket'
 
@@ -14,16 +13,10 @@ type SocketContextValue = {
 
 const SocketContext = createContext<SocketContextValue | null>(null)
 
-// One WebSocket connection for the whole authenticated session, shared by
-// every component that needs it (the project editor's room, app-wide
-// notifications like incoming access requests, and Yjs document sync — see
-// collaboration/CollaborativeDocument.ts for the binary channel's consumer).
-// The service instance is created once via useState's lazy initializer, so
-// its identity is stable and available from the very first render.
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { status } = useAuth()
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
-  const [service] = useState(() => new WebSocketService(getToken))
+  const [service] = useState(() => new WebSocketService())
 
   useEffect(() => {
     const unsubscribe = service.onStateChange(setConnectionState)

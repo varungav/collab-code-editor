@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { api } from './api/client'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import AccessRequestPopup from './components/AccessRequestPopup'
 import { useAccessRequests } from './hooks/useAccessRequests'
 import Dashboard from './pages/Dashboard'
 import EditorPage from './pages/EditorPage'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
+import NamePromptPage from './pages/NamePromptPage'
 import { SocketProvider } from './realtime/SocketProvider'
 
 type View = { name: 'dashboard' } | { name: 'editor'; projectId: string }
@@ -20,10 +20,11 @@ function pathForView(view: View): string {
 }
 
 function AuthenticatedApp() {
-  const { status } = useAuth()
-  const [authView, setAuthView] = useState<'login' | 'register'>('login')
+  const { status, user } = useAuth()
   const [view, setView] = useState<View>(() => parseView(window.location.pathname))
   const { pendingRequests, approve, deny } = useAccessRequests()
+  // true only during the tick right after the user submits their name
+  const justNamed = useRef(false)
 
   useEffect(() => {
     function handlePopState() {
@@ -33,13 +34,22 @@ function AuthenticatedApp() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
+  // When the user just entered their name and landed on dashboard (no shared
+  // link), auto-create their project and go straight to the editor.
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      setView({ name: 'dashboard' })
-      setAuthView('login')
-      window.history.replaceState(null, '', '/')
-    }
-  }, [status])
+    if (status !== 'authenticated' || !justNamed.current) return
+    if (view.name !== 'dashboard') return // shared link — skip auto-create
+    justNamed.current = false
+
+    api
+      .createProject(`${user!.name}'s project`)
+      .then((project) => {
+        navigate({ name: 'editor', projectId: project.id })
+      })
+      .catch(() => {
+        // If creation fails just stay on dashboard
+      })
+  }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function navigate(next: View) {
     setView(next)
@@ -54,10 +64,12 @@ function AuthenticatedApp() {
   }
 
   if (status === 'unauthenticated') {
-    return authView === 'login' ? (
-      <LoginPage onSwitchToRegister={() => setAuthView('register')} />
-    ) : (
-      <RegisterPage onSwitchToLogin={() => setAuthView('login')} />
+    return (
+      <NamePromptPage
+        onName={() => {
+          justNamed.current = true
+        }}
+      />
     )
   }
 

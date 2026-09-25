@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { ProjectMember, ProjectRole } from '../types/members'
 
@@ -14,152 +14,107 @@ const ROLE_LABEL: Record<ProjectRole, string> = {
   VIEWER: 'Viewer',
 }
 
-// Only the owner sees Add/Change/Remove controls — but that's purely a
-// convenience: the backend enforces the same rule independently regardless
-// of what this component renders.
+const ROLE_COLOR: Record<ProjectRole, string> = {
+  OWNER: '#f0a500',
+  EDITOR: '#4fc1ff',
+  VIEWER: '#8a8a8a',
+}
+
+function avatar(name: string) {
+  return name.trim().charAt(0).toUpperCase()
+}
+
 function MembersPanel({ projectId, currentRole, onClose }: MembersPanelProps) {
-  const isOwner = currentRole === 'OWNER'
   const [members, setMembers] = useState<ProjectMember[]>([])
-  const [membersLoading, setMembersLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
-  const [addError, setAddError] = useState('')
-  const [busy, setBusy] = useState(false)
-  // Tracks which member row has a role-change/remove request in flight, so
-  // only that row shows a spinner instead of locking the whole list.
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  // closing drives the slide-out animation; actual unmount happens after it finishes
+  const [closing, setClosing] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setMembersLoading(true)
-    setLoadError('')
     api
       .getProjectMembers(projectId)
       .then(setMembers)
-      .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Failed to load members'))
-      .finally(() => setMembersLoading(false))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load members'))
+      .finally(() => setLoading(false))
   }, [projectId])
 
-  const handleAdd = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!email.trim()) return
-    setBusy(true)
-    setAddError('')
-    try {
-      const member = await api.addProjectMember(projectId, email.trim(), role)
-      setMembers((prev) => [...prev, member])
-      setEmail('')
-    } catch (err) {
-      setAddError(err instanceof ApiError ? err.message : 'Failed to add member')
-    } finally {
-      setBusy(false)
-    }
+  const shareUrl = `${window.location.origin}/projects/${projectId}`
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(shareUrl).catch(() => {})
   }
 
-  const handleChangeRole = async (userId: string, newRole: ProjectRole) => {
-    if (newRole === 'OWNER') return
-    setPendingUserId(userId)
-    try {
-      const updated = await api.updateMemberRole(projectId, userId, newRole)
-      setMembers((prev) => prev.map((m) => (m.userId === userId ? updated : m)))
-    } catch {
-      // Non-fatal for this simple panel; the member list stays as-is on failure.
-    } finally {
-      setPendingUserId(null)
-    }
+  function startClose() {
+    setClosing(true)
   }
 
-  const handleRemove = async (userId: string) => {
-    setPendingUserId(userId)
-    try {
-      await api.removeMember(projectId, userId)
-      setMembers((prev) => prev.filter((m) => m.userId !== userId))
-    } catch {
-      // Non-fatal; nothing to reconcile beyond leaving them in the list.
-    } finally {
-      setPendingUserId(null)
-    }
+  function handleAnimationEnd() {
+    if (closing) onClose()
   }
 
   return (
-    <div className="members-modal-backdrop" onClick={onClose}>
-      <div className="members-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="members-modal__header">
-          <h2>Project Members</h2>
-          <button type="button" className="link-button" onClick={onClose}>
-            Close
+    <div
+      className={`members-backdrop${closing ? ' members-backdrop--out' : ''}`}
+      onClick={startClose}
+    >
+      <div
+        ref={panelRef}
+        className={`members-panel${closing ? ' members-panel--out' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        onAnimationEnd={handleAnimationEnd}
+      >
+        {/* Header */}
+        <div className="members-panel__header">
+          <span className="members-panel__title">Members</span>
+          <button type="button" className="members-panel__close" onClick={startClose} aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
           </button>
         </div>
 
-        {loadError && <div className="auth-error">{loadError}</div>}
-
-        {membersLoading ? (
-          <div className="members-list__loading">
-            <span className="spinner" aria-hidden="true" /> Loading members…
-          </div>
-        ) : (
-          <ul className="members-list">
-            {members.map((member) => {
-              const isPending = pendingUserId === member.userId
-              return (
-                <li key={member.userId} className="members-list__item">
-                  <div>
-                    <div className="members-list__name">{member.name}</div>
-                    <div className="members-list__role">{ROLE_LABEL[member.role]}</div>
-                  </div>
-                  {isOwner && member.role !== 'OWNER' && (
-                    <div className="members-list__actions">
-                      {isPending && <span className="spinner" aria-hidden="true" />}
-                      <select
-                        value={member.role}
-                        disabled={isPending}
-                        onChange={(event) => handleChangeRole(member.userId, event.target.value as ProjectRole)}
-                      >
-                        <option value="EDITOR">Editor</option>
-                        <option value="VIEWER">Viewer</option>
-                      </select>
-                      <button
-                        type="button"
-                        className="link-button"
-                        disabled={isPending}
-                        onClick={() => handleRemove(member.userId)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-
-        {isOwner && (
-          <form className="members-add-form" onSubmit={handleAdd}>
-            <div className="members-add-form__title">Add Member</div>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-            <select value={role} onChange={(event) => setRole(event.target.value as 'EDITOR' | 'VIEWER')}>
-              <option value="EDITOR">Editor</option>
-              <option value="VIEWER">Viewer</option>
-            </select>
-            <button type="submit" disabled={busy || !email.trim()}>
-              {busy ? (
-                <>
-                  <span className="spinner spinner--inline" aria-hidden="true" /> Adding…
-                </>
-              ) : (
-                '+ Add Member'
-              )}
+        {/* Share link */}
+        <div className="members-panel__section">
+          <div className="members-panel__label">Invite via link</div>
+          <div className="members-panel__share-row">
+            <span className="members-panel__share-url">{shareUrl}</span>
+            <button type="button" className="members-panel__copy-btn" onClick={handleCopy}>
+              Copy
             </button>
-            {addError && <div className="auth-error">{addError}</div>}
-          </form>
-        )}
+          </div>
+        </div>
+
+        <div className="members-panel__divider" />
+
+        {/* Member list */}
+        <div className="members-panel__section">
+          <div className="members-panel__label">
+            {loading ? 'Loading…' : `${members.length} member${members.length !== 1 ? 's' : ''}`}
+          </div>
+          {error && <div className="members-panel__error">{error}</div>}
+          {!loading && !error && (
+            <ul className="members-panel__list">
+              {members.map((m) => (
+                <li key={m.userId} className="members-panel__item">
+                  <div
+                    className="members-panel__avatar"
+                    style={{ background: ROLE_COLOR[m.role] + '22', color: ROLE_COLOR[m.role] }}
+                  >
+                    {avatar(m.name)}
+                  </div>
+                  <div className="members-panel__info">
+                    <span className="members-panel__name">{m.name}</span>
+                    <span className="members-panel__role-badge" style={{ color: ROLE_COLOR[m.role] }}>
+                      {ROLE_LABEL[m.role]}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -51,6 +51,18 @@ export class CollaborativeDocument {
   private pendingAwarenessTimer: ReturnType<typeof setTimeout> | null = null
   private lastAwarenessSendAt = 0
 
+  // "Dirty" tracking for the Explorer/tab "M" badge. The very first sync
+  // frame is the server's existing (already-saved) content being seeded
+  // into this doc, captured below as `baselineContent` — that seed must not
+  // itself count as a change. After that, every edit (local or a remote
+  // collaborator's) is compared against that baseline by actual content, not
+  // just "has *a* change happened" — so undoing back to exactly what's
+  // already saved (locally, or because someone else's edit reverted it)
+  // clears the dirty state again, same as it would in a real editor.
+  private hasReceivedInitialSync = false
+  private baselineContent = ''
+  private readonly changeListeners = new Set<(dirty: boolean) => void>()
+
   constructor(transport: CollabTransport, projectId: string, fileId: string, user: CollabUser, onSynced: () => void) {
     this.transport = transport
     this.projectId = projectId
@@ -60,6 +72,7 @@ export class CollaborativeDocument {
     this.doc = new Y.Doc()
     this.ytext = this.doc.getText('content')
     this.doc.on('update', this.handleLocalDocUpdate)
+    this.doc.on('update', this.handleAnyDocUpdate)
 
     this.awareness = new Awareness(this.doc)
     // Attach listeners before publishing our own identity, so opening the
@@ -77,6 +90,10 @@ export class CollaborativeDocument {
     const payload = data.subarray(1)
     if (type === MESSAGE_SYNC) {
       Y.applyUpdate(this.doc, payload, REMOTE_ORIGIN)
+      if (!this.hasReceivedInitialSync) {
+        this.hasReceivedInitialSync = true
+        this.baselineContent = this.ytext.toString()
+      }
       this.onSynced()
     } else if (type === MESSAGE_AWARENESS) {
       applyAwarenessUpdate(this.awareness, payload, REMOTE_ORIGIN)
@@ -87,6 +104,27 @@ export class CollaborativeDocument {
     // Document edits are never throttled — only cursor/selection awareness is.
     if (origin === REMOTE_ORIGIN) return
     this.transport.sendBinary(frameMessage(MESSAGE_SYNC, update))
+  }
+
+  private handleAnyDocUpdate = (): void => {
+    if (!this.hasReceivedInitialSync) return
+    const dirty = this.ytext.toString() !== this.baselineContent
+    for (const listener of this.changeListeners) listener(dirty)
+  }
+
+  // Fires on every content change after the initial load — local edits and
+  // remote ones alike — with whether the document currently differs from
+  // its saved baseline (not just "something changed at some point").
+  onLocalChange(listener: (dirty: boolean) => void): () => void {
+    this.changeListeners.add(listener)
+    return () => this.changeListeners.delete(listener)
+  }
+
+  // Call after a successful save: the just-persisted content becomes the
+  // new baseline, so further edits are compared against *this*, not the
+  // original load.
+  markSaved(): void {
+    this.baselineContent = this.ytext.toString()
   }
 
   private handleLocalAwarenessUpdate = (
@@ -181,6 +219,8 @@ export class CollaborativeDocument {
     this.binding = null
     this.unsubscribeBinary()
     this.doc.off('update', this.handleLocalDocUpdate)
+    this.doc.off('update', this.handleAnyDocUpdate)
+    this.changeListeners.clear()
 
     // Drop any pending throttled cursor-move send (stale by now), but keep
     // the awareness 'update' listener attached one moment longer so the

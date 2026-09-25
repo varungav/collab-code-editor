@@ -2,7 +2,6 @@ import type { IncomingMessage, Server as HttpServer } from 'node:http'
 import type { Socket } from 'node:net'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 import { userRepository } from '../repositories/userRepository'
-import { verifyToken } from '../utils/jwt'
 import { connectionManager } from './connectionManager'
 import { handleClientMessage } from './messageHandler'
 import type { WsUser } from './types'
@@ -10,21 +9,19 @@ import { MESSAGE_AWARENESS, MESSAGE_SYNC, yjsRoomManager } from './yjsRoomManage
 
 const WS_PATH = '/ws'
 
-// Browsers can't set custom headers on the WebSocket handshake, so the JWT is
-// passed as a query parameter instead of an Authorization header.
+// Browsers can't set custom headers on the WebSocket handshake, so guest
+// identity is passed as query parameters: ?guestId=<uuid>&guestName=<name>
 async function authenticateUpgrade(request: IncomingMessage): Promise<WsUser> {
   const url = new URL(request.url ?? '', 'http://localhost')
-  const token = url.searchParams.get('token')
-  if (!token) {
-    throw new Error('Missing token')
+  const guestId = url.searchParams.get('guestId')
+  const guestName = url.searchParams.get('guestName')
+
+  if (!guestId || !guestName) {
+    throw new Error('Missing guest identity')
   }
 
-  const payload = verifyToken(token)
-  const user = await userRepository.findById(payload.sub)
-  if (!user) {
-    throw new Error('User not found')
-  }
-
+  const email = `guest-${guestId}@guest.local`
+  const user = await userRepository.upsertGuest({ id: guestId, name: guestName, email })
   return { id: user.id, name: user.name, email: user.email }
 }
 

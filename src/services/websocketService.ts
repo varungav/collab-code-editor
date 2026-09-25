@@ -1,3 +1,4 @@
+import { getGuestId, getGuestName } from '../auth/guestStore'
 import type { ClientMessage, ConnectionState, ServerMessage } from '../types/websocket'
 
 function resolveWsUrl(): string {
@@ -33,11 +34,8 @@ export class WebSocketService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
   private shouldReconnect = false
-  private getToken: () => string | null
 
-  constructor(getToken: () => string | null) {
-    this.getToken = getToken
-  }
+  constructor() {}
 
   connect(): void {
     this.shouldReconnect = true
@@ -92,14 +90,16 @@ export class WebSocketService {
   }
 
   private openSocket(): void {
-    const token = this.getToken()
-    if (!token) {
+    const guestId = getGuestId()
+    const guestName = getGuestName()
+    if (!guestName) {
       this.setState('disconnected')
       return
     }
 
     this.setState('connecting')
-    const socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`)
+    const url = `${WS_URL}?guestId=${encodeURIComponent(guestId)}&guestName=${encodeURIComponent(guestName)}`
+    const socket = new WebSocket(url)
     socket.binaryType = 'arraybuffer'
     this.socket = socket
 

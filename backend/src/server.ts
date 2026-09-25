@@ -3,7 +3,6 @@ import cors from 'cors'
 import express from 'express'
 import { prisma } from './config/database'
 import accessRequestRoutes from './routes/accessRequestRoutes'
-import authRoutes from './routes/authRoutes'
 import fileRoutes from './routes/fileRoutes'
 import projectRoutes from './routes/projectRoutes'
 import { errorHandler, notFoundHandler } from './utils/errorHandler'
@@ -14,7 +13,7 @@ const app = express()
 const PORT = process.env.PORT ?? 3000
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173'
 
-app.use(cors({ origin: FRONTEND_URL }))
+app.use(cors({ origin: FRONTEND_URL, allowedHeaders: ['Content-Type', 'X-Guest-Id', 'X-Guest-Name'] }))
 // Sized to comfortably exceed fileService's own MAX_CONTENT_BYTES (5MB) even
 // after JSON-string escaping overhead, so a file that's actually too large
 // fails validation there (clean 400 naming the real limit) instead of being
@@ -31,7 +30,6 @@ app.get('/api/health', (_req, res) => {
   res.status(200).json({ status: 'ok' })
 })
 
-app.use('/api/auth', authRoutes)
 app.use('/api/projects', projectRoutes)
 app.use('/api/files', fileRoutes)
 app.use('/api/access-requests', accessRequestRoutes)

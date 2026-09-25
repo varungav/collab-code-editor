@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { CollabLogEntry } from '../hooks/useProjectSocket'
 import type { ConnectionState } from '../types/websocket'
+import ShortcutsHelp from './ShortcutsHelp'
 
 type CollabPanelProps = {
   projectId: string
@@ -9,55 +10,90 @@ type CollabPanelProps = {
   onSendTestMessage: (text: string) => void
 }
 
-const STATE_LABEL: Record<ConnectionState, string> = {
-  connected: '🟢 Connected',
-  connecting: '🟡 Connecting…',
-  disconnected: '🔴 Disconnected',
+const DOT_COLOR: Record<ConnectionState, string> = {
+  connected: '#4ec94e',
+  connecting: '#f0a500',
+  disconnected: '#6a6a6a',
 }
 
-// Temporary debug panel for verifying the WebSocket room/broadcast
-// infrastructure (Phase 6). Not meant to survive into the real collaboration UI.
-function CollabPanel({ projectId, connectionState, messages, onSendTestMessage }: CollabPanelProps) {
+function CollabPanel({ connectionState, messages, onSendTestMessage }: CollabPanelProps) {
   const [draft, setDraft] = useState('')
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const isConnected = connectionState === 'connected'
+
+  // Auto-scroll to newest message
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (!draft.trim()) return
-    onSendTestMessage(draft)
+    const text = draft.trim()
+    if (!text || !isConnected) return
+    onSendTestMessage(text)
     setDraft('')
   }
 
   return (
-    <div className="collab-panel">
-      <div className="collab-panel__header">Live Collaboration (Debug)</div>
-      <div className="collab-panel__status">
-        <span>Connection: {STATE_LABEL[connectionState]}</span>
-        <span className="collab-panel__project-id">Project: {projectId.slice(0, 8)}</span>
+    <div className="chat-panel">
+      {/* Header */}
+      <div className="chat-panel__header">
+        <span className="chat-panel__title">Chat</span>
+        <div className="chat-panel__header-right">
+          <span className="chat-panel__status">
+            <span className="chat-panel__dot" style={{ background: DOT_COLOR[connectionState] }} />
+            {connectionState === 'connected' ? 'Live' : connectionState === 'connecting' ? 'Connecting' : 'Offline'}
+          </span>
+          <ShortcutsHelp />
+        </div>
       </div>
 
-      <div className="collab-panel__messages">
-        {messages.length === 0 && <p className="collab-panel__empty">No messages yet.</p>}
-        {messages.map((entry) => (
-          <div
-            key={entry.id}
-            className={`collab-panel__message${entry.system ? ' collab-panel__message--system' : ''}`}
-          >
-            <span className="collab-panel__message-author">{entry.self ? 'You' : entry.userName}</span>
-            <span>{entry.message}</span>
+      {/* Messages */}
+      <div className="chat-panel__messages">
+        {messages.length === 0 && (
+          <div className="chat-panel__empty">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+                stroke="#3a3d41" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>No messages yet</span>
           </div>
-        ))}
+        )}
+        {messages.map((entry) =>
+          entry.system ? (
+            <div key={entry.id} className="chat-panel__system">{entry.message}</div>
+          ) : (
+            <div key={entry.id} className={`chat-panel__msg${entry.self ? ' chat-panel__msg--self' : ''}`}>
+              {!entry.self && (
+                <div className="chat-panel__bubble-name">{entry.userName}</div>
+              )}
+              <div className="chat-panel__bubble">{entry.message}</div>
+            </div>
+          )
+        )}
+        <div ref={bottomRef} />
       </div>
 
-      <form className="collab-panel__composer" onSubmit={handleSubmit}>
+      {/* Composer */}
+      <form className="chat-panel__composer" onSubmit={handleSubmit}>
         <input
           type="text"
-          placeholder="Send a test message…"
+          className="chat-panel__input"
+          placeholder={isConnected ? 'Message…' : 'Waiting for connection…'}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={connectionState !== 'connected'}
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={!isConnected}
         />
-        <button type="submit" disabled={connectionState !== 'connected' || !draft.trim()}>
-          Send Test Message
+        <button
+          type="submit"
+          className="chat-panel__send"
+          disabled={!isConnected || !draft.trim()}
+          aria-label="Send"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M13 1L6 8M13 1L9 13l-3-5-5-3 12-4z"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
       </form>
     </div>
