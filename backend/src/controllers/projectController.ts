@@ -14,6 +14,12 @@ async function getOne(req: Request<{ projectId: string }>, res: Response) {
   res.status(200).json(project)
 }
 
+async function joinByLink(req: Request<{ projectId: string }>, res: Response) {
+  const userId = requireUserId(req)
+  await projectService.joinProjectByLink(req.params.projectId, userId)
+  res.status(204).end()
+}
+
 async function create(req: Request, res: Response) {
   const userId = requireUserId(req)
   const project = await projectService.createProject(userId, req.body?.name)
@@ -23,5 +29,6 @@ async function create(req: Request, res: Response) {
 export const projectController = {
   getAll,
   getOne,
+  joinByLink,
   create,
 }

@@ -53,6 +53,15 @@ async function getAccessStatus(
   return { project, status: 'none', role: null }
 }
 
+async function joinProjectByLink(projectId: string, userId: string): Promise<void> {
+  const project = await projectRepository.findById(projectId)
+  if (!project) {
+    throw new AppError(404, 'Project not found')
+  }
+
+  await projectMemberRepository.joinByLink(projectId, userId)
+}
+
 async function createProject(ownerId: string, name: unknown): Promise<Project> {
   if (typeof name !== 'string' || !name.trim()) {
     throw new AppError(400, 'Project name is required')
@@ -79,5 +88,6 @@ export const projectService = {
   getAllProjects,
   getProjectById,
   getAccessStatus,
+  joinProjectByLink,
   createProject,
 }

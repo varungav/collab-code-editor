@@ -29,7 +29,11 @@ export function useProjectAccess(projectId: string): UseProjectAccessResult {
   const load = useCallback(async () => {
     setState({ phase: 'loading' })
     try {
-      const access = await api.getProjectAccess(projectId)
+      let access = await api.getProjectAccess(projectId)
+      if (access.status === 'none') {
+        await api.joinProjectByLink(projectId)
+        access = await api.getProjectAccess(projectId)
+      }
       setState({ phase: 'ready', status: access.status, projectName: access.projectName, role: access.role })
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {

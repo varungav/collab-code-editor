@@ -45,6 +45,15 @@ function upsert(projectId: string, userId: string, role: ProjectRole): Promise<P
   })
 }
 
+// Join from a shared link; preserve any role the user already has.
+function joinByLink(projectId: string, userId: string): Promise<ProjectMember> {
+  return prisma.projectMember.upsert({
+    where: { projectId_userId: { projectId, userId } },
+    create: { projectId, userId, role: 'EDITOR' },
+    update: {},
+  })
+}
+
 function updateRole(projectId: string, userId: string, role: ProjectRole): Promise<ProjectMember> {
   return prisma.projectMember.update({ where: { projectId_userId: { projectId, userId } }, data: { role } })
 }
@@ -60,6 +69,7 @@ export const projectMemberRepository = {
   findAllForUserWithProject,
   create,
   upsert,
+  joinByLink,
   updateRole,
   remove,
 }

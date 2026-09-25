@@ -67,6 +67,8 @@ export const api = {
   getProjectMessages: (projectId: string) => request<ChatMessage[]>(`/projects/${projectId}/messages`),
 
   getProjectAccess: (projectId: string) => request<ProjectAccess>(`/projects/${projectId}/access`),
+  joinProjectByLink: (projectId: string) =>
+    request<void>(`/projects/${projectId}/join`, { method: 'POST' }),
   requestProjectAccess: (projectId: string) =>
     request<void>(`/projects/${projectId}/access-requests`, { method: 'POST' }),
   listIncomingAccessRequests: () => request<IncomingAccessRequest[]>('/access-requests'),

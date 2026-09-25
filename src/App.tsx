@@ -25,6 +25,7 @@ function AuthenticatedApp() {
   const { pendingRequests, approve, deny } = useAccessRequests()
   // true only during the tick right after the user submits their name
   const justNamed = useRef(false)
+  const justNamedThisRender = justNamed.current
 
   useEffect(() => {
     function handlePopState() {
@@ -37,7 +38,7 @@ function AuthenticatedApp() {
   // When the user just entered their name and landed on dashboard (no shared
   // link), auto-create their project and go straight to the editor.
   useEffect(() => {
-    if (status !== 'authenticated' || !justNamed.current) return
+    if (status !== 'authenticated' || !justNamedThisRender) return
     if (view.name !== 'dashboard') return // shared link — skip auto-create
     justNamed.current = false
 
@@ -48,6 +49,33 @@ function AuthenticatedApp() {
       })
       .catch(() => {
         // If creation fails just stay on dashboard
+      })
+  }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A fresh visit to the root opens the user's own console instead of the
+  // dashboard. The dashboard remains available from the editor's Projects button.
+  const openedRootProject = useRef(false)
+  const startedAtRoot = useRef(window.location.pathname === '/')
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !startedAtRoot.current || openedRootProject.current) return
+    if (justNamedThisRender) return // the name-entry flow creates and opens a project above
+    openedRootProject.current = true
+
+    api
+      .getProjects()
+      .then((projects) => {
+        const project = projects.find((item) => item.role === 'OWNER') ?? projects[0]
+        if (project) {
+          navigate({ name: 'editor', projectId: project.id })
+          return
+        }
+        return api.createProject(`${user!.name}'s project`).then((created) => {
+          navigate({ name: 'editor', projectId: created.id })
+        })
+      })
+      .catch(() => {
+        // Keep the dashboard available if project loading or creation fails.
       })
   }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
 
