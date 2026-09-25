@@ -4,7 +4,6 @@ import type { ProjectMember, ProjectRole } from '../types/members'
 
 type MembersPanelProps = {
   projectId: string
-  currentRole: ProjectRole
   onClose: () => void
 }
 
@@ -24,7 +23,7 @@ function avatar(name: string) {
   return name.trim().charAt(0).toUpperCase()
 }
 
-function MembersPanel({ projectId, currentRole, onClose }: MembersPanelProps) {
+function MembersPanel({ projectId, onClose }: MembersPanelProps) {
   const [members, setMembers] = useState<ProjectMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

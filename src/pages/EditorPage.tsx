@@ -71,7 +71,7 @@ function EditorPage({ projectId, onBack }: EditorPageProps) {
             />
             <Workspace projectId={projectId} role={role} projectName={projectName} />
             {membersOpen && (
-              <MembersPanel projectId={projectId} currentRole={role} onClose={() => setMembersOpen(false)} />
+              <MembersPanel projectId={projectId} onClose={() => setMembersOpen(false)} />
             )}
           </>
         )}
